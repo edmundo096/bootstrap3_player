@@ -31,27 +31,33 @@
 
     function processSrc(srcTag) {
 
+        // Create the new player container div.
         var player_box = document.createElement('div');
         $(player_box).addClass($(srcTag).attr('class') + ' well container-fluid playa');
 
+
+        // Create the Metadata/Info section.
         var data_sec = document.createElement('section');
         $(data_sec).addClass('collapsing center-block row col-sm-12');
 
+        // Create the div that will contain the toggle button.
         var toggle_holder = document.createElement('div');
         $(toggle_holder).addClass('btn-group center-block row col-sm-12');
-
+        // Toggle button.
         var data_toggle = document.createElement('button');
-        $(data_toggle).html('<i class="glyphicon glyphicon-align-justify" style="top:-3px"></i>');
-        $(data_toggle).addClass('btn btn-default btn-lg btn-block row col-sm-12');
-        $(data_toggle).attr('style', 'opacity:0.3');
-        $(data_toggle).click(function () {$(data_sec).collapse('toggle'); });
-        $(data_toggle).attr('title', 'Details');
-        $(data_toggle).tooltip({'container': 'body', 'placement': 'top', 'html': true});
+        var jqDataToggle = $(data_toggle);
+        jqDataToggle.html('<i class="glyphicon glyphicon-align-justify" style="top:-3px"></i>');
+        jqDataToggle.addClass('btn btn-default btn-lg btn-block row col-sm-12');
+        jqDataToggle.attr('style', 'opacity:0.3');
+        jqDataToggle.click(function () {$(data_sec).collapse('toggle'); });
+        jqDataToggle.attr('title', 'Details');
+        jqDataToggle.tooltip({'container': 'body', 'placement': 'top', 'html': true});
         $(toggle_holder).append(data_toggle);
 
         var data_table = document.createElement('table');
         $(data_table).addClass('table table-condensed');
 
+        // Create the player buttons section.
         var player = document.createElement('section');
         $(player).addClass('btn-group  center-block row  col-sm-12');
 
@@ -68,12 +74,13 @@
 
     function load_error(player_box) {
         // console.log('error');
-        $(player_box).find('.btn').addClass('disabled');
-        $(player_box).find('input[type="range"]').hide();
-        $(player_box).find('.glyphicon-refresh').text('Error');
-        $(player_box).find('.glyphicon-refresh').parent().attr('title', 'There was an error loading the audio.');
-        $(player_box).find('.glyphicon-refresh').parent().tooltip('fixTitle');
-        $(player_box).find('.glyphicon-refresh').removeClass('glyphicon glyphicon-refresh spin');
+        var jqPlayerBox = $(player_box);
+        jqPlayerBox.find('.btn').addClass('disabled');
+        jqPlayerBox.find('input[type="range"]').hide();
+        jqPlayerBox.find('.glyphicon-refresh').text('Error');
+        jqPlayerBox.find('.glyphicon-refresh').parent().attr('title', 'There was an error loading the audio.');
+        jqPlayerBox.find('.glyphicon-refresh').parent().tooltip('fixTitle');
+        jqPlayerBox.find('.glyphicon-refresh').removeClass('glyphicon glyphicon-refresh spin');
     } // load_error
 
     function addPlay(srcTag, player) {
@@ -135,7 +142,9 @@
             var bg = 'rgba(223, 240, 216, 1) 0%';
             bg += ', rgba(223, 240, 216, 1) ' + ((srcTag.currentTime / srcTag.duration) * 100) + '%';
             bg += ', rgba(223, 240, 216, 0) ' + ((srcTag.currentTime / srcTag.duration) * 100) + '%';
-            for (i = 0; i < srcTag.buffered.length; i++) {
+
+            // TODO: srcTag.buffered may not exist.
+            for (i = 0; srcTag.buffered && i < srcTag.buffered.length; i++) {
                 if (srcTag.buffered.end(i) > srcTag.currentTime &&
                     isNaN(srcTag.buffered.end(i)) === false &&
                     isNaN(srcTag.buffered.start(i)) === false) {
@@ -157,11 +166,11 @@
                 }
             }
             $(seek).css('background', '-webkit-linear-gradient(left, ' + bg + ')');
-                //These may be re-enabled when/if other browsers support the background like webkit
-                //$(seek).css('background','-o-linear-gradient(left,  ' + bg + ')');
-                //$(seek).css('background','-moz-linear-gradient(left,  ' + bg + ')');
-                //$(seek).css('background','-ms-linear-gradient(left,  ' + bg + ')');
-                //$(seek).css('background','linear-gradient(to right,  ' + bg + ')');
+            //These may be re-enabled when/if other browsers support the background like webkit
+            //$(seek).css('background','-o-linear-gradient(left,  ' + bg + ')');
+            //$(seek).css('background','-moz-linear-gradient(left,  ' + bg + ')');
+            //$(seek).css('background','-ms-linear-gradient(left,  ' + bg + ')');
+            //$(seek).css('background','linear-gradient(to right,  ' + bg + ')');
             $(seek).css('background-color', '#ddd');
         }; // seek.progress
 
@@ -201,13 +210,14 @@
         $(seek).on('change', seek.slide);
 
         // bind audio element events to trigger seek slider updates
-        $(srcTag).on('timeupdate', seek.init);
-        $(srcTag).on('loadedmetadata', seek.init);
-        $(srcTag).on('loadeddata', seek.init);
-        $(srcTag).on('progress', seek.init);
-        $(srcTag).on('canplay', seek.init);
-        $(srcTag).on('canplaythrough', seek.init);
-        $(srcTag).on('ended', seek.reset);
+        var jqSrcTag = $(srcTag);
+        jqSrcTag.on('timeupdate', seek.init);
+        jqSrcTag.on('loadedmetadata', seek.init);
+        jqSrcTag.on('loadeddata', seek.init);
+        jqSrcTag.on('progress', seek.init);
+        jqSrcTag.on('canplay', seek.init);
+        jqSrcTag.on('canplaythrough', seek.init);
+        jqSrcTag.on('ended', seek.reset);
         if (srcTag.readyState > 0) {
             seek.init();
         }
@@ -355,22 +365,23 @@
         // jslint will complain about our use of `typeof` but
         // it's the only way not to raise an error by referencing
         // a nnon-existent data-* variable
-        if (typeof ($(srcTag).data('infoAlbumArt')) !== 'undefined') {
+        var jqSrcTag = $(srcTag);
+        if (typeof (jqSrcTag.data('infoAlbumArt')) !== 'undefined') {
             addAlbumArt(srcTag, data_sec);
         }
-        if (typeof ($(srcTag).data('infoArtist')) !== 'undefined') {
+        if (typeof (jqSrcTag.data('infoArtist')) !== 'undefined') {
             addInfo(srcTag, 'Artist', 'infoArtist', data_table);
         }
-        if (typeof ($(srcTag).data('infoTitle')) !== 'undefined') {
+        if (typeof (jqSrcTag.data('infoTitle')) !== 'undefined') {
             addInfo(srcTag, 'Title', 'infoTitle', data_table);
         }
-        if (typeof ($(srcTag).data('infoAlbumTitle')) !== 'undefined') {
+        if (typeof (jqSrcTag.data('infoAlbumTitle')) !== 'undefined') {
             addInfo(srcTag, 'Album', 'infoAlbumTitle', data_table);
         }
-        if (typeof ($(srcTag).data('infoLabel')) !== 'undefined') {
+        if (typeof (jqSrcTag.data('infoLabel')) !== 'undefined') {
             addInfo(srcTag, 'Label', 'infoLabel', data_table);
         }
-        if (typeof ($(srcTag).data('infoYear')) !== 'undefined') {
+        if (typeof (jqSrcTag.data('infoYear')) !== 'undefined') {
             addInfo(srcTag, 'Year', 'infoYear', data_table);
         }
         if ($(data_table).html() !== '') {
