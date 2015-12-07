@@ -97,7 +97,7 @@
                 // Skip interval creation if is already running.
                 if (isIntervalRunning) return;
 
-                updateFromYtIntervalId = window.setInterval(updateFromYt, 1000); // x milliseconds per attempt
+                updateFromYtIntervalId = window.setInterval(updateFromYt, 500); // x milliseconds per attempt
                 isIntervalRunning = true;
             }
             else {
@@ -140,14 +140,14 @@
 
         // Create the Metadata/Info section.
         var data_sec = document.createElement('section');
-        $(data_sec).addClass('collapsing center-block row col-sm-12');
+        $(data_sec).addClass('playa-data-sec collapsing center-block row col-sm-12');
         // Metadata/Info table.
         var data_table = document.createElement('table');
         $(data_table).addClass('table table-condensed');
 
         // Create the div that will contain the toggle button.
         var toggle_holder = document.createElement('div');
-        $(toggle_holder).addClass('btn-group center-block row col-sm-12');
+        $(toggle_holder).addClass('playa-toggle-holder btn-group center-block row col-sm-12');
         // Toggle button.
         var data_toggle = document.createElement('button');
         var jqDataToggle = $(data_toggle);
@@ -497,8 +497,8 @@
         if ($(data_table).html() !== '') {
             $(data_sec).append(data_table);
             // Add Toggle button and Data section.
-            $(player_box).append(toggle_holder);
-            $(player_box).append(data_sec);
+            $(player_box).prepend(data_sec);
+            $(player_box).prepend(toggle_holder);
         }
     } // addData
 
@@ -547,6 +547,25 @@
     } // fillPlayerBox
 
     function updatePlayerBoxData(srcTag, player_box, data_sec, data_table, toggle_holder) {
+        // Check if was collapsed.
+        var isCollapsed = ! $(data_sec).hasClass('in');
+
+        // Remove old content.
+        $('.playa-data-sec').remove();
+        $('.playa-toggle-holder').detach();
+
+        // Create the Metadata/Info section.
+        data_sec = document.createElement('section');
+        $(data_sec).addClass('playa-data-sec center-block row col-sm-12');
+        $(data_sec).addClass(isCollapsed ? 'collapse':'collapse in');
+        // Metadata/Info table.
+        data_table = document.createElement('table');
+        $(data_table).addClass('table table-condensed');
+
+        // Set the button toggle the new data_sec.
+        $(toggle_holder).children().first().click(function () {$(data_sec).collapse('toggle'); });
+
+
         addData(srcTag, player_box, data_sec, data_table, toggle_holder);
 
         if (typeof ($(srcTag).data('infoAtt')) !== 'undefined') {
