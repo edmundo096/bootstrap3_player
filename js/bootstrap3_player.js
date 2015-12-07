@@ -2,7 +2,6 @@
 (function ($) {
     'use strict';
 
-    // TODO Add modifications to create and control a youtube player, depending the data-source data-source-type.
     // Search the target container to control and lister for.
 
     // Select the #media-container, and the audio tags that is not inside a #media-container.
@@ -14,7 +13,106 @@
     mediaContainerTag.prepend(function() {
         var srcTag = this;
 
-        return processSrc(srcTag);
+        // Player type as a container, used further in the player setup.
+        // Enables the use of the 'data-source' and 'data-source-type' attributes.
+        //-srcTag.playerType = 'container';
+
+        var jqSrcTag = $(srcTag);
+        // Wrap
+        // Youtube (TODO: At the moment, only supports 1 YT player per document)
+        var ytPlayer;
+        var updateFromYt, updateFromYtIntervalId;
+        var isIntervalRunning = false;
+
+        var processedPlayer = processSrc(srcTag);
+
+        jqSrcTag.on('datachange', function() {
+            // Notification that there was a change on the data attributes.
+            // (since original player was not designed to work dynamically with src and data-* changes).
+
+            // Check the data-source-type.
+            if (jqSrcTag.data('sourceType') == 'youtube') {
+                // If YT player does not exists, create YouTube player.
+                if ( ! ytPlayer) {
+                    window.onYouTubeIframeAPIReady = function() {
+                        ytPlayer = new YT.Player('yt-player', {
+                            height: '390',
+                            width: '640',
+                            videoId: jqSrcTag.data('source'),
+                            events: {
+                                //'onReady': onPlayerReady,
+                                'onStateChange': onPlayerStateChange
+                            }
+                        });
+                    };
+                    var tag = document.createElement('script');
+                    tag.src = "https://www.youtube.com/iframe_api";
+                    jqSrcTag.prepend(tag);
+
+                    updateFromYt = function () {
+                        var percentageLoaded = ytPlayer.getVideoLoadedFraction();
+                        var currentTime = ytPlayer.getCurrentTime();
+                        var duration = ytPlayer.getDuration();
+
+                        // Create a simulated TimeRanges Object with only 1 range.
+                        srcTag.buffered = {
+                            length: 1,
+                            start: function(i) { return 0; },
+                            end: function(i) { return duration * percentageLoaded; }
+                        };
+                        srcTag.currentTime = currentTime;
+                        srcTag.duration = duration;
+                        srcTag.networkState = 0;
+                        srcTag.readyState = 0;  // Only used 1 time at setup.
+                        srcTag.loop = 0;
+                        srcTag.muted = ytPlayer.isMuted();
+                        srcTag.volume = ytPlayer.getVolume();
+
+                        jqSrcTag.trigger('timeupdate');
+                    }
+                }
+
+                // Update data from YouTube.
+                if (ytPlayer) {
+                    updateFromYt();
+                }
+            }
+            else {
+                if (ytPlayer) {
+                    ytPlayer.stop();
+                }
+            }
+
+            // Update data info panel.
+            updatePlayerBoxData(srcTag,
+                processedPlayer.player_box, processedPlayer.data_sec,
+                processedPlayer.data_table, processedPlayer.toggle_holder);
+        });
+
+        function onPlayerStateChange(event) {
+            // Check if need to set the interval to update info from YT.
+            if (event.data == YT.PlayerState.PLAYING
+                || event.data == YT.PlayerState.BUFFERING) {
+
+                // Skip interval creation if is already running.
+                if (isIntervalRunning) return;
+
+                updateFromYtIntervalId = window.setInterval(updateFromYt, 1000); // x milliseconds per attempt
+                isIntervalRunning = true;
+            }
+            else {
+                window.clearInterval(updateFromYtIntervalId);
+                isIntervalRunning = false;
+            }
+
+            // To set play/pause buttons state.
+            if (event.data == YT.PlayerState.PLAYING)
+                jqSrcTag.trigger('play');
+            else if (event.data == YT.PlayerState.PAUSED)
+                jqSrcTag.trigger('pause');
+        }
+
+        return processedPlayer.player_box;
     });
 
 
@@ -22,10 +120,14 @@
 	audioTag.before(function() {
         var srcTag = this;
 
+        // Player type as a audio only, used further in the player setup.
+        srcTag.playerType = 'audio';
+
         // Turn off the native audio controls.
         srcTag.controls = false;
 
-        return processSrc(srcTag);
+        // TODO, handle data updates as the container does.
+        return processSrc(srcTag).player_box;
     });
 
 
@@ -39,6 +141,9 @@
         // Create the Metadata/Info section.
         var data_sec = document.createElement('section');
         $(data_sec).addClass('collapsing center-block row col-sm-12');
+        // Metadata/Info table.
+        var data_table = document.createElement('table');
+        $(data_table).addClass('table table-condensed');
 
         // Create the div that will contain the toggle button.
         var toggle_holder = document.createElement('div');
@@ -54,9 +159,6 @@
         jqDataToggle.tooltip({'container': 'body', 'placement': 'top', 'html': true});
         $(toggle_holder).append(data_toggle);
 
-        var data_table = document.createElement('table');
-        $(data_table).addClass('table table-condensed');
-
         // Create the player buttons section.
         var player = document.createElement('section');
         $(player).addClass('btn-group  center-block row  col-sm-12');
@@ -68,7 +170,14 @@
             console.log("Error encountered after fillPlayerBox");
             load_error(player_box);
         });
-        return player_box;
+
+        // Return an object with: player_box, data_sec, data_table, toggle_holder.
+        return {
+            player_box: player_box,
+            data_sec: data_sec,
+            data_table: data_table,
+            toggle_holder: toggle_holder
+        };
     }
 
 
@@ -83,49 +192,50 @@
         jqPlayerBox.find('.glyphicon-refresh').removeClass('glyphicon glyphicon-refresh spin');
     } // load_error
 
-    function addPlay(srcTag, player) {
-        var play = document.createElement('button');
-        $(play).addClass('btn  btn-default disabled col-sm-1');
+    function addPlayBtn(srcTag, player) {
+        var playBtn = document.createElement('button');
+        $(playBtn).addClass('btn  btn-default disabled col-sm-1');
 
-        play.setPlayState = function (toggle) {
-            $(play).removeClass('disabled');
-            if (toggle === 'play') {
-                $(play).html('<i class="glyphicon glyphicon-play"></i>');
-                $(play).click(function () {
+        playBtn.setPlayState = function (toggleStateTo) {
+            $(playBtn).removeClass('disabled');
+            if (toggleStateTo === 'play') {
+                $(playBtn).html('<i class="glyphicon glyphicon-play"></i>');
+                $(playBtn).click(function () {
                     srcTag.play();
                 });
             }
-            if (toggle === 'pause') {
-                $(play).html('<i class="glyphicon glyphicon-pause"></i>');
-                $(play).click(function () {
+            if (toggleStateTo === 'pause') {
+                $(playBtn).html('<i class="glyphicon glyphicon-pause"></i>');
+                $(playBtn).click(function () {
                     srcTag.pause();
                 });
             }
         }; // setPlayState
 
         // media events from the audio element will trigger rebuilding the play button
-        $(srcTag).on('play', function () {play.setPlayState('pause'); });
-        $(srcTag).on('canplay', function () {play.setPlayState('play'); });
-        $(srcTag).on('pause', function () {play.setPlayState('play'); });
+        $(srcTag).on('play', function () {playBtn.setPlayState('pause'); });
+        $(srcTag).on('canplay', function () {playBtn.setPlayState('play'); });
+        $(srcTag).on('pause', function () {playBtn.setPlayState('play'); });
 
         var timeout = 0;
 
-        var loadCheck = setInterval(function () {
+        var loadCheck = window.setInterval(function () {
             if (isNaN(srcTag.duration) === false) {
-                play.setPlayState('play');
-                clearInterval(loadCheck);
+                playBtn.setPlayState('play');
+                window.clearInterval(loadCheck);
                 return true;
             }
             if (srcTag.networkState === 3 || timeout === 100) {
                 // 3 = NETWORK_NO_SOURCE - no audio/video source found
                 console.log('No audio source was found or a timeout occurred');
                 load_error();
-                clearInterval(loadCheck);
+                window.clearInterval(loadCheck);
                 return false;
             }
             timeout++;
         }, 100); // x milliseconds per attempt
-        $(player).append(play);
+
+        $(player).append(playBtn);
     } // addPlay
 
     function addSeek(srcTag, player) {
@@ -386,6 +496,7 @@
         }
         if ($(data_table).html() !== '') {
             $(data_sec).append(data_table);
+            // Add Toggle button and Data section.
             $(player_box).append(toggle_holder);
             $(player_box).append(data_sec);
         }
@@ -393,7 +504,7 @@
 
     function addPlayer(player_box, srcTag, player) {
         if ($(srcTag).data('play') !== 'off') {
-            addPlay(srcTag, player);
+            addPlayBtn(srcTag, player);
         }
         if ($(srcTag).data('seek') !== 'off') {
             addSeek(srcTag, player);
@@ -434,5 +545,13 @@
             addAttribution(srcTag, player_box);
         }
     } // fillPlayerBox
+
+    function updatePlayerBoxData(srcTag, player_box, data_sec, data_table, toggle_holder) {
+        addData(srcTag, player_box, data_sec, data_table, toggle_holder);
+
+        if (typeof ($(srcTag).data('infoAtt')) !== 'undefined') {
+            addAttribution(srcTag, player_box);
+        }
+    } // updatePlayerBoxData
 
 })(jQuery);
