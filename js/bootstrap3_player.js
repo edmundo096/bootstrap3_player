@@ -26,7 +26,8 @@
 
         var processedPlayer = processSrc(srcTag);
 
-        jqSrcTag.on('datachange', function() {
+        // Function which process the source type and the changes with the Data attributes.
+        var processDataAttrs = function() {
             // Notification that there was a change on the data attributes.
             // (since original player was not designed to work dynamically with src and data-* changes).
 
@@ -42,6 +43,9 @@
                             events: {
                                 //'onReady': onPlayerReady,
                                 'onStateChange': onPlayerStateChange
+                            },
+                            playerVars: {
+                                controls: 0
                             }
                         });
                     };
@@ -49,6 +53,7 @@
                     tag.src = "https://www.youtube.com/iframe_api";
                     jqSrcTag.prepend(tag);
 
+                    // Set function to update player from YT player.
                     updateFromYt = function () {
                         var percentageLoaded = ytPlayer.getVideoLoadedFraction();
                         var currentTime = ytPlayer.getCurrentTime();
@@ -62,20 +67,50 @@
                         };
                         srcTag.currentTime = currentTime;
                         srcTag.duration = duration;
+                        srcTag.paused = ytPlayer.getPlayerState() != YT.PlayerState.PLAYING;
                         srcTag.networkState = 0;
                         srcTag.readyState = 0;  // Only used 1 time at setup.
                         srcTag.loop = 0;
                         srcTag.muted = ytPlayer.isMuted();
-                        srcTag.volume = ytPlayer.getVolume();
+                        srcTag.volume = ytPlayer.getVolume()/100;
 
                         jqSrcTag.trigger('timeupdate');
-                    }
-                }
+                        jqSrcTag.trigger('volumechange');
+                    };
 
-                // Update data from YouTube.
-                if (ytPlayer) {
+                    // Set function to update YT player from player.
+                    // TODO set an event for each
+                    jqSrcTag.on('controlChange', function() {
+                        ytPlayer.setVolume(srcTag.volume * 100);
+                        srcTag.muted ? ytPlayer.mute() : ytPlayer.unMute();
+                        ytPlayer.seekTo(srcTag.currentTime, true);
+                    });
+                    jqSrcTag.on('play', function(event, params) {
+                        // Ignore if was from YT state change event.
+                        if (params && params.isFromStateChange) return;
+
+                        ytPlayer.playVideo();
+                    });
+                    jqSrcTag.on('pause', function(event, params) {
+                        // Ignore if was from YT state change event.
+                        if (params && params.isFromStateChange) return;
+
+                        ytPlayer.pauseVideo();
+                    });
+                }
+                else {
+                    // YT already exists.
+
+                    // Load and play YT video from data source.
+                    ytPlayer.loadVideoById(jqSrcTag.data('source'));
+
+
+                    // Update data from YouTube.
                     updateFromYt();
                 }
+
+                // Simulate that there is an image (will be changed to the YT player later).
+                jqSrcTag.data('infoAlbumArt', '');
             }
             else {
                 if (ytPlayer) {
@@ -83,12 +118,27 @@
                 }
             }
 
+            // TODO move this functions..
+
+            // Move the YT player container.
+            var ytPlayerContainer = $('#yt-player').parent('.embed-responsive');
+            if ( ! ytPlayerContainer)
+                ytPlayerContainer = $('#yt-player');
+            ytPlayerContainer.detach();
+
             // Update data info panel.
-            updatePlayerBoxData(srcTag,
+            recreatePlayerBoxData(srcTag,
                 processedPlayer.player_box, processedPlayer.data_sec,
                 processedPlayer.data_table, processedPlayer.toggle_holder);
-        });
 
+            jqSrcTag.find('img').replaceWith(ytPlayerContainer);
+        };
+
+        ////processDataAttrs();
+
+        jqSrcTag.on('datachange', processDataAttrs);
+
+        // YT function.
         function onPlayerStateChange(event) {
             // Check if need to set the interval to update info from YT.
             if (event.data == YT.PlayerState.PLAYING
@@ -107,9 +157,9 @@
 
             // To set play/pause buttons state.
             if (event.data == YT.PlayerState.PLAYING)
-                jqSrcTag.trigger('play');
+                jqSrcTag.trigger('play', {isFromStateChange: true});
             else if (event.data == YT.PlayerState.PAUSED)
-                jqSrcTag.trigger('pause');
+                jqSrcTag.trigger('pause', {isFromStateChange: true});
         }
 
         return processedPlayer.player_box;
@@ -201,13 +251,23 @@
             if (toggleStateTo === 'play') {
                 $(playBtn).html('<i class="glyphicon glyphicon-play"></i>');
                 $(playBtn).click(function () {
-                    srcTag.play();
+
+                    if (srcTag.play)
+                        srcTag.play();
+                    else
+                        $(srcTag).trigger('play');
+
                 });
             }
             if (toggleStateTo === 'pause') {
                 $(playBtn).html('<i class="glyphicon glyphicon-pause"></i>');
                 $(playBtn).click(function () {
-                    srcTag.pause();
+
+                    if (srcTag.pause)
+                        srcTag.pause();
+                    else
+                        $(srcTag).trigger('pause');
+
                 });
             }
         }; // setPlayState
@@ -291,6 +351,9 @@
 
         seek.slide = function () {
             srcTag.currentTime = $(seek).val();
+
+            $(srcTag).trigger('controlChange');
+
             seek.progress();
         };
 
@@ -306,10 +369,22 @@
             $(seek).val(0);
             srcTag.currentTime = $(seek).val();
             if (!srcTag.loop) {
-                srcTag.pause();
+
+                if (srcTag.pause)
+                    srcTag.pause();
+                else
+                    $(srcTag).trigger('pause');
+
             } else {
-                srcTag.play();
+
+                if (srcTag.play)
+                    srcTag.play();
+                else
+                    $(srcTag).trigger('play');
+
             }
+
+            $(srcTag).trigger('controlChange');
         };
 
         var seek_wrapper = document.createElement('div');
@@ -372,8 +447,15 @@
         }; // time.showtime
 
         $(time).click(function () {
-            srcTag.pause();
+            if (srcTag.pause)
+                srcTag.pause();
+            else
+                $(srcTag).trigger('pause');
+
             srcTag.currentTime = 0;
+
+            $(srcTag).trigger('controlChange');
+
             time.showtime();
             $(time).tooltip('fixTitle');
             $(time).tooltip('show');
@@ -417,6 +499,7 @@
                 srcTag.oldvolume = srcTag.volume;
                 srcTag.volume = 0;
             }
+            $(srcTag).trigger('controlChange');
             mute.checkVolume();
         }); // mute.click(
 
@@ -438,6 +521,7 @@
         volume.slide = function () {
             srcTag.muted = false;
             srcTag.volume = $(volume).val();
+            $(srcTag).trigger('controlChange');
         }; // volume.slide
 
         volume.set = function () {
@@ -546,7 +630,7 @@
         }
     } // fillPlayerBox
 
-    function updatePlayerBoxData(srcTag, player_box, data_sec, data_table, toggle_holder) {
+    function recreatePlayerBoxData(srcTag, player_box, data_sec, data_table, toggle_holder) {
         // Check if was collapsed.
         var isCollapsed = ! $(data_sec).hasClass('in');
 
@@ -571,6 +655,6 @@
         if (typeof ($(srcTag).data('infoAtt')) !== 'undefined') {
             addAttribution(srcTag, player_box);
         }
-    } // updatePlayerBoxData
+    } // recreatePlayerBoxData
 
 })(jQuery);
