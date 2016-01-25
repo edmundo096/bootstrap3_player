@@ -1,5 +1,7 @@
 *To do:* Fork reason, extend controller capabilities for other sources, such as video, YouTube iFrame, etc.
 
+**Note:** This project is for the moment unmantained. It needs to be cleaned and finish implementing most of the ideas.
+
 bootstrap3_player
 ================
 
